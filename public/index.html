@@ -12,6 +12,7 @@ button { background:#238636; cursor:pointer; border:none; }
 .card { border:1px solid #30363d; border-radius:8px; padding:16px; margin:12px 0; }
 .hide { display:none; }
 .row { display:flex; gap:8px; }
+.link { color:#58a6ff; background:none; width:auto; padding:0; text-decoration:underline; }
 </style>
 </head>
 <body>
@@ -33,7 +34,7 @@ button { background:#238636; cursor:pointer; border:none; }
 </div>
 </div>
 <div id="appView" class="hide">
-<button onclick="logout()">Logout</button>
+<button onclick="logout()" class="link">Logout</button>
 <div class="card">
 <h3>Subcontractors (CIS)</h3>
 <input id="cName" placeholder="Subcontractor name">
@@ -85,16 +86,13 @@ const d = await r.json();
 if (d.token) { token = d.token; localStorage.setItem('ir_token', token); show(); } else alert(d.error || 'Error');
 }
 function logout() { localStorage.removeItem('ir_token'); token = null; location.reload(); }
-function show() {
-document.getElementById('authView').classList.add('hide');
-document.getElementById('appView').classList.remove('hide');
-loadContractors(); loadCustomers(); loadInvoices();
-}
+function show() { document.getElementById('authView').classList.add('hide'); document.getElementById('appView').classList.remove('hide'); loadContractors(); loadCustomers(); loadInvoices(); }
 function toggleType() {
 const cis = document.getElementById('iType').value === 'cis';
 document.getElementById('iContractor').classList.toggle('hide', !cis);
 document.getElementById('iCis').classList.toggle('hide', !cis);
 document.getElementById('iCustomer').classList.toggle('hide', cis);
+document.getElementById('iVat').classList.toggle('hide', cis);
 }
 async function loadContractors() {
 const r = await fetch('/api/contractors', { headers: headers() });
@@ -137,11 +135,19 @@ let line = '<div class="card"><b>' + inv.number + '</b> [' + inv.type + '] - ' +
 if (vat) line += ' | VAT GBP' + vat.toFixed(2);
 if (cis) line += ' | CIS -GBP' + cis.toFixed(2);
 line += ' | Total GBP' + net.toFixed(2) + ' | ' + inv.status;
-line += '<br><a href="/api/invoices/' + inv.id + '/pdf" target="_blank" style="color:#58a6ff">View PDF</a> ';
+line += '<br><button class="link" onclick="viewPdf(&#39;' + inv.id + '&#39;)">View PDF</button> ';
 line += '<button onclick="sendInvoice(&#39;' + inv.id + '&#39;)">Email</button> ';
 line += '<button onclick="deleteInvoice(&#39;' + inv.id + '&#39;)">Delete</button></div>';
 return line;
 }).join('');
+}
+async function viewPdf(id) {
+const r = await fetch('/api/invoices/' + id + '/pdf', { headers: { 'Authorization': 'Bearer ' + token } });
+if (!r.ok) { alert('Could not load PDF.'); return; }
+const blob = await r.blob();
+const url = URL.createObjectURL(blob);
+window.open(url, '_blank');
+setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 async function sendInvoice(id) {
 const to = prompt('Send invoice to email address:');
