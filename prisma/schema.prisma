@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id          String   @id @default(cuid())
+  name        String
+  address     String?
+  createdAt   DateTime @default(now())
+  users       User[]
+  contractors Contractor[]
+  invoices    Invoice[]
+}
+
+model User {
+  id       String @id @default(cuid())
+  email    String @unique
+  password String
+  role     String @default("owner")
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+}
+
+model Contractor {
+  id       String  @id @default(cuid())
+  name     String
+  address  String?
+  email    String?
+  utr      String?
+  tenantId String
+  tenant   Tenant  @relation(fields: [tenantId], references: [id])
+  invoices Invoice[]
+}
+
+model Invoice {
+  id           String     @id @default(cuid())
+  number       String
+  status       String     @default("draft")
+  contractorId String
+  contractor   Contractor @relation(fields: [contractorId], references: [id])
+  tenantId     String
+  tenant       Tenant     @relation(fields: [tenantId], references: [id])
+  cisRate      Float      @default(0)
+  notes        String?
+  issueDate    DateTime   @default(now())
+  items        InvoiceItem[]
+  createdAt    DateTime   @default(now())
+}
+
+model InvoiceItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  qty         Float   @default(1)
+  unitPrice   Float   @default(0)
+}
