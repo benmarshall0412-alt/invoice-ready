@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Invoice Ready</title>
+<style>
+body { font-family: Arial, sans-serif; max-width: 720px; margin: 0 auto; padding: 20px; background: #0d1117; color: #e6edf3; }
+h1 { color: #58a6ff; }
+input, textarea, button { padding: 8px; margin: 4px 0; width: 100%; box-sizing: border-box; background:#161b22; color:#e6edf3; border:1px solid #30363d; border-radius:6px; }
+button { background:#238636; cursor:pointer; border:none; }
+.card { border:1px solid #30363d; border-radius:8px; padding:16px; margin:12px 0; }
+.hide { display:none; }
+.row { display:flex; gap:8px; }
+</style>
+</head>
+<body>
+<h1>Invoice Ready</h1>
+<div id="authView">
+<div class="card">
+<h3>Register your company</h3>
+<input id="rCompany" placeholder="Company name">
+<input id="rAddress" placeholder="Company address">
+<input id="rEmail" placeholder="Email">
+<input id="rPass" type="password" placeholder="Password">
+<button onclick="register()">Register</button>
+</div>
+<div class="card">
+<h3>Login</h3>
+<input id="lEmail" placeholder="Email">
+<input id="lPass" type="password" placeholder="Password">
+<button onclick="login()">Login</button>
+</div>
+</div>
+<div id="appView" class="hide">
+<button onclick="logout()">Logout</button>
+<div class="card">
+<h3>Add subcontractor (self-employed)</h3>
+<input id="cName" placeholder="Self-employed name">
+<input id="cAddress" placeholder="Address">
+<input id="cEmail" placeholder="Email">
+<input id="cUtr" placeholder="UTR number">
+<button onclick="addContractor()">Save subcontractor</button>
+</div>
+<div class="card">
+<h3>Create CIS invoice</h3>
+<select id="iContractor"></select>
+<input id="iNumber" placeholder="Invoice number e.g. INV-001">
+<input id="iDesc" placeholder="Work description">
+<div class="row"><input id="iQty" placeholder="Qty" value="1"><input id="iPrice" placeholder="Unit price GBP"></div>
+<input id="iCis" placeholder="CIS rate % (e.g. 20)" value="20">
+<textarea id="iNotes" placeholder="Notes"></textarea>
+<button onclick="createInvoice()">Create invoice</button>
+</div>
+<div class="card">
+<h3>Invoices</h3>
+<div id="invList"></div>
+</div>
+</div>
+<script>
+let token = localStorage.getItem('ir_token');
+function headers() { return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }; }
+async function register() {
+const r = await fetch('/api/register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ company: rCompany.value, address: rAddress.value, email: rEmail.value, password: rPass.value }) });
+const d = await r.json();
+if (d.token) { token = d.token; localStorage.setItem('ir_token', token); show(); } else alert(d.error || 'Error');
+}
+async function login() {
+const r = await fetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email: lEmail.value, password: lPass.value }) });
+const d = await r.json();
+if (d.token) { token = d.token; localStorage.setItem('ir_token', token); show(); } else alert(d.error || 'Error');
+}
+function logout() { localStorage.removeItem('ir_token'); token = null; location.reload(); }
+function show() { document.getElementById('authView').classList.add('hide'); document.getElementById('appView').classList.remove('hide'); loadContractors(); loadInvoices(); }
+async function loadContractors() {
+const r = await fetch('/api/contractors', { headers: headers() });
+const list = await r.json();
+const sel = document.getElementById('iContractor');
+sel.innerHTML = list.map(c => '<option value="' + c.id + '">' + c.name + '</option>').join('');
+}
+async function addContractor() {
+await fetch('/api/contractors', { method:'POST', headers: headers(), body: JSON.stringify({ name: cName.value, address: cAddress.value, email: cEmail.value, utr: cUtr.value }) });
+cName.value=''; cAddress.value=''; cEmail.value=''; cUtr.value='';
+loadContractors();
+}
+async function createInvoice() {
+await fetch('/api/invoices', { method:'POST', headers: headers(), body: JSON.stringify({ number: iNumber.value, contractorId: iContractor.value, cisRate: Number(iCis.value), notes: iNotes.value, items: [{ description: iDesc.value, qty: iQty.value, unitPrice: iPrice.value }] }) });
+iNumber.value=''; iDesc.value=''; iPrice.value='';
+loadInvoices();
+}
+async function loadInvoices() {
+const r = await fetch('/api/invoices', { headers: headers() });
+const list = await r.json();
+document.getElementById('invList').innerHTML = list.map(function(inv) {
+const gross = inv.items.reduce((s,i) => s + i.qty*i.unitPrice, 0);
+const cis = gross * (inv.cisRate/100);
+return '<div class="card"><b>' + inv.number + '</b> - ' + inv.contractor.name + '<br>Gross GBP' + gross.toFixed(2) + ' | CIS -GBP' + cis.toFixed(2) + ' | Net GBP' + (gross-cis).toFixed(2) + ' | Status: ' + inv.status + '<br><a href="/api/invoices/' + inv.id + '/pdf" target="_blank" style="color:#58a6ff">View PDF</a> <button onclick="sendInvoice(\'' + inv.id + '\')">Email invoice</button></div>';
+}).join('');
+}
+async function sendInvoice(id) {
+const to = prompt('Send invoice to email address:');
+if (!to) return;
+const r = await fetch('/api/invoices/' + id + '/send', { method:'POST', headers: headers(), body: JSON.stringify({ to: to }) });
+if (r.ok) { alert('Invoice sent.'); loadInvoices(); } else alert('Send failed - check SMTP settings.');
+}
+if (token) show();
+</script>
+</body>
+</html>
