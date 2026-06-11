@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sign in · Invoice Ready</title>
+<style>
+:root{--bg:#0f172a;--card:#1e293b;--text:#f8fafc;--muted:#94a3b8;--primary:#22c55e;--primary-hover:#16a34a;--border:#334155;--danger:#ef4444;}
+*{box-sizing:border-box;margin:0;padding:0;font-family:Arial,sans-serif;}
+body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
+.card{width:100%;max-width:420px;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:28px;box-shadow:0 20px 50px rgba(0,0,0,0.35);}
+h1{font-size:1.4rem;margin-bottom:4px;}
+.sub{color:var(--muted);font-size:0.85rem;margin-bottom:20px;}
+label{display:block;font-size:0.8rem;color:var(--muted);margin:12px 0 4px;}
+input{width:100%;padding:11px;border-radius:8px;border:1px solid var(--border);background:#0b1220;color:var(--text);}
+.btn{width:100%;margin-top:18px;padding:12px;border-radius:8px;border:1px solid var(--primary);background:var(--primary);color:#052e16;cursor:pointer;font-weight:bold;}
+.btn:hover{background:var(--primary-hover);}
+.toggle{margin-top:16px;text-align:center;font-size:0.85rem;color:var(--muted);}
+.toggle a{color:var(--primary);cursor:pointer;text-decoration:none;}
+.err{color:var(--danger);font-size:0.85rem;margin-top:12px;min-height:1em;}
+.hidden{display:none;}
+</style>
+</head>
+<body>
+<div class="card">
+<h1 id="title">Sign in</h1>
+<div class="sub" id="subtitle">Welcome back to Invoice Ready.</div>
+
+<div id="regFields" class="hidden">
+<label>Company</label>
+<input id="company" placeholder="Your company name" />
+<label>Address</label>
+<input id="address" placeholder="Company address" />
+</div>
+
+<label>Email</label>
+<input id="email" type="email" placeholder="you@company.com" />
+<label>Password</label>
+<input id="password" type="password" placeholder="••••••••" />
+
+<button class="btn" id="submitBtn" onclick="submit()">Sign in</button>
+<div class="err" id="err"></div>
+
+<div class="toggle" id="toggle">
+No account yet? <a onclick="setMode('register')">Create one</a>
+</div>
+</div>
+
+<script>
+let mode = 'login';
+
+function setMode(m) {
+  mode = m;
+  const isReg = m === 'register';
+  document.getElementById('regFields').className = isReg ? '' : 'hidden';
+  document.getElementById('title').textContent = isReg ? 'Create account' : 'Sign in';
+  document.getElementById('subtitle').textContent = isReg ? 'Set up your Invoice Ready workspace.' : 'Welcome back to Invoice Ready.';
+  document.getElementById('submitBtn').textContent = isReg ? 'Create account' : 'Sign in';
+  document.getElementById('toggle').innerHTML = isReg
+    ? 'Already have an account? <a onclick="setMode(\'login\')">Sign in</a>'
+    : 'No account yet? <a onclick="setMode(\'register\')">Create one</a>';
+  document.getElementById('err').textContent = '';
+}
+
+async function submit() {
+  const err = document.getElementById('err');
+  err.textContent = '';
+  const email = val('email'), password = val('password');
+  if (!email || !password) { err.textContent = 'Email and password are required.'; return; }
+
+  const path = mode === 'register' ? '/api/register' : '/api/login';
+  const body = mode === 'register'
+    ? { company: val('company'), address: val('address'), email: email, password: password }
+    : { email: email, password: password };
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  try {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json().catch(function(){ return {}; });
+    if (!res.ok) throw new Error(data.error || ('Request failed (' + res.status + ')'));
+    if (!data.token) throw new Error('No token returned.');
+    localStorage.setItem('token', data.token);
+    window.location.href = '/customers';
+  } catch (e) {
+    err.textContent = e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function val(id){ return document.getElementById(id).value.trim(); }
+
+document.getElementById('password').addEventListener('keydown', function(e){ if (e.key === 'Enter') submit(); });
+</script>
+</body>
+</html>
