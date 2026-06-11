@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Customers · Invoice Ready</title>
+<style>
+:root{--bg:#0f172a;--card:#1e293b;--text:#f8fafc;--muted:#94a3b8;--primary:#22c55e;--primary-hover:#16a34a;--border:#334155;--danger:#ef4444;}
+*{box-sizing:border-box;margin:0;padding:0;font-family:Arial,sans-serif;}
+body{background:var(--bg);color:var(--text);min-height:100vh;padding:24px;}
+.wrap{max-width:960px;margin:0 auto;}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
+h1{font-size:1.5rem;}
+a.back{color:var(--muted);text-decoration:none;font-size:0.85rem;}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;}
+.row{display:flex;gap:12px;flex-wrap:wrap;}
+input{flex:1;min-width:160px;padding:10px;border-radius:8px;border:1px solid var(--border);background:#0b1220;color:var(--text);}
+.btn{padding:10px 16px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;font-weight:bold;}
+.btn.primary{background:var(--primary);color:#052e16;border-color:var(--primary);}
+.btn.danger{color:var(--danger);border-color:var(--danger);}
+table{width:100%;border-collapse:collapse;}
+th,td{text-align:left;padding:10px;border-bottom:1px solid var(--border);font-size:0.9rem;}
+th{color:var(--muted);font-weight:normal;}
+.muted{color:var(--muted);font-size:0.85rem;}
+.err{color:var(--danger);font-size:0.85rem;margin-top:8px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="top">
+<h1>Customers</h1>
+<a class="back" href="/">← Back to home</a>
+</div>
+<div class="card">
+<div class="row">
+<input id="name" placeholder="Name" />
+<input id="email" placeholder="Email" />
+<input id="phone" placeholder="Phone" />
+<input id="address" placeholder="Address" />
+<button class="btn primary" onclick="createCustomer()">Add</button>
+</div>
+<div id="formErr" class="err"></div>
+</div>
+<div class="card">
+<table>
+<thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Address</th><th></th></tr></thead>
+<tbody id="rows"><tr><td colspan="5" class="muted">Loading...</td></tr></tbody>
+</table>
+</div>
+</div>
+<script>
+const token = localStorage.getItem('token');
+const headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token };
+
+async function load() {
+  const tbody = document.getElementById('rows');
+  try {
+    const res = await fetch('/api/customers', { headers });
+    if (!res.ok) throw new Error('Failed to load (' + res.status + ')');
+    const list = await res.json();
+    if (!list.length) { tbody.innerHTML = '<tr><td colspan="5" class="muted">No customers yet.</td></tr>'; return; }
+    tbody.innerHTML = list.map(function(c){
+      return '<tr>' +
+        '<td>' + esc(c.name) + '</td>' +
+        '<td>' + esc(c.email) + '</td>' +
+        '<td>' + esc(c.phone) + '</td>' +
+        '<td>' + esc(c.address) + '</td>' +
+        '<td><button class="btn danger" onclick="del(\'' + c.id + '\')">Delete</button></td>' +
+      '</tr>';
+    }).join('');
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="5" class="err">' + esc(e.message) + '</td></tr>';
+  }
+}
+
+async function createCustomer() {
+  const err = document.getElementById('formErr');
+  err.textContent = '';
+  const body = {
+    name: val('name'), email: val('email'), phone: val('phone'), address: val('address')
+  };
+  if (!body.name) { err.textContent = 'Name is required.'; return; }
+  try {
+    const res = await fetch('/api/customers', { method: 'POST', headers, body: JSON.stringify(body) });
+    if (!res.ok) throw new Error('Create failed (' + res.status + ')');
+    ['name','email','phone','address'].forEach(function(id){ document.getElementById(id).value = ''; });
+    load();
+  } catch (e) { err.textContent = e.message; }
+}
+
+async function del(id) {
+  if (!confirm('Delete this customer?')) return;
+  try {
+    const res = await fetch('/api/customers/' + id, { method: 'DELETE', headers });
+    if (!res.ok) throw new Error('Delete failed (' + res.status + ')');
+    load();
+  } catch (e) { alert(e.message); }
+}
+
+function val(id){ return document.getElementById(id).value.trim(); }
+function esc(s){ return (s == null ? '' : String(s)).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
+
+load();
+</script>
+</body>
+</html>
